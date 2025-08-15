@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>VHS Audio FX Generator</title>
+<style>
+  body { background:#111;color:#fff;font-family:Arial, sans-serif;padding:20px; }
+  h1 { color:#ff5252; }
+  label { display:block;margin-top:10px;font-weight:bold; }
+  input[type="range"], select { width:100%; }
+  button { margin-top:15px;padding:10px 15px;background:#ff5252;border:none;color:white;cursor:pointer; }
+</style>
+</head>
+<body>
+
+<h1>🎛 VHS Audio FX Generator</h1>
+
+<label>上传音频文件 (Upload Audio File)：</label>
+<input type="file" id="audioFile" accept="audio/*">
+
+<label>噪声音量 (Noise Level)：</label>
+<input type="range" id="noiseLevel" min="0" max="0.5" step="0.01" value="0.05">
+
+<label>噪声类型 (Noise Color)：</label>
+<select id="noiseColor">
+  <option value="white">White Noise (Bright)</option>
+  <option value="pink">Pink Noise (Warm)</option>
+  <option value="brown">Brown Noise (Deep)</option>
+</select>
+
+<label>磁带饱和 (Tape Saturation)：</label>
+<input type="range" id="saturation" min="0" max="1" step="0.05" value="0.4">
+
+<label>失真强度 (Distortion Amount)：</label>
+<input type="range" id="distortionAmount" min="0" max="1" step="0.01" value="0.2">
+
+<label>音调偏离程度：</label>
+<input type="range" id="wowDepth" min="0" max="1" step="0.01" value="0.05">
+
+<label>音调偏离速率 (Hz)：</label>
+<input type="range" id="wowRate" min="0.1" max="5" step="0.1" value="1">
+
+<label>颤音程度：</label>
+<input type="range" id="flutterDepth" min="0" max="1" step="0.01" value="0.02">
+
+<label>颤音速率 (Hz)：</label>
+<input type="range" id="flutterRate" min="1" max="20" step="0.1" value="8">
+
+<label>立体声摆动速度 (Hz)：</label>
+<input type="range" id="panningSpeed" min="0" max="5" step="0.1" value="0.5">
+
+<label>背景嗡嗡声 (Hum Level)：</label>
+<input type="range" id="humLevel" min="0" max="0.5" step="0.01" value="0.05">
+
+<label>音量漂移 (Volume Drift)：</label>
+<input type="range" id="volumeDrift" min="0" max="1" step="0.01" value="0.1">
+
+<label>高频衰减 (HF Roll-off, Hz)：</label>
+<input type="range" id="hfRoll" min="500" max="10000" step="100" value="4000">
+
+<button onclick="startPlayback()">Start / Update</button>
+<button onclick="stopPlayback()">Stop</button>
+<button onclick="toggleBypass()" id="bypassBtn">Bypass: OFF</button>
+<button onclick="downloadProcessed()">Download Processed Audio</button>
+
+<script>
+let ctx = null;
+let fileBuffer = null;
+
+// 全局：节点引用
+let src = null, bypass = false;
+let filterNode, saturationNode, distortionNode;
+let wowLFO, wowGain, flutterLFO, flutterGain;
+let panner, panLFO, panGain;
+let noiseSource, noiseGain;
+let humSource, humGain;
+let driftGain, driftLFO, driftDepth;
+let merger;
+
+// 平滑
+const SMOOTH = 0.05;
+const $ = id => document.getElementById(id);
+
+// 文件载入
+$('audioFile').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+  const arrayBuffer = await file.arrayBuffer();
+  fileBuffer = await ctx.decodeAudioData(arrayBuffer);
+});
+
+// 绑定控件
+function bindLiveControls() {
+  $('hfRoll').oninput = () => { if (filterNode) filterNode.frequency.linearRampToValueAtTime(parseFloat($('hfRoll').value), ctx.currentTime + SMOOTH); };
+  $('saturation').oninput = () => { if (saturationNode) saturationNode.curve = makeSaturationCurve(parseFloat($('saturation').value) * 20); };
+  $('distortionAmount').oninput = () => { if (distortionNode) distortionNode.curve = makeSaturationCurve(parseFloat($('distortionAmount').value) * 50); };
+
+  $('wowRate').oninput = () => { if (wowLFO) wowLFO.frequency.setTargetAtTime(parseFloat($('wowRate').value), ctx.currentTime, 0.01); };
+  $('wowDepth').oninput = () => { if (wowGain) wowGain.gain.setTargetAtTime(parseFloat($('wowDepth').value) * 0.05, ctx.currentTime, 0.01); };
+  $('flutterRate').oninput = () => { if (flutterLFO) flutterLFO.frequency.setTargetAtTime(parseFloat($('flutterRate').value), ctx.currentTime, 0.01); };
+  $('flutterDepth').oninput = () => { if (flutterGain) flutterGain.gain.setTargetAtTime(parseFloat($('flutterDepth').value) * 0.01, ctx.currentTime, 0.01); };
+
+  $('panningSpeed').oninput = () => {
+    const v = parseFloat($('panningSpeed').value);
+    if (panLFO && panGain && panner) {
+      panLFO.frequency.setTargetAtTime(v, ctx.currentTime, 0.01);
+      panGain.gain.setTargetAtTime(v === 0 ? 0 : 1, ctx.currentTime, 0.01);
+      if (v === 0) panner.pan.setTargetAtTime(0, ctx.currentTime, 0.01);
+    }
+  };
+
+  $('noiseLevel').oninput = () => { if (noiseGain) noiseGain.gain.setTargetAtTime(Math.pow(parseFloat($('noiseLevel').value), 2.2), ctx.currentTime, 0.02); };
+  $('noiseColor').onchange = () => {
+    if (!ctx || !fileBuffer) return;
+    if (noiseSource) { try { noiseSource.stop(); } catch(e){} }
+    if (!noiseGain) return; // 旁路或未启用效果链
+    const newBuf = generateNoiseBuffer(ctx, fileBuffer.duration, $('noiseColor').value);
+    noiseSource = ctx.createBufferSource();
+    noiseSource.buffer = newBuf; noiseSource.loop = true;
+    noiseSource.connect(noiseGain); noiseSource.start();
+  };
+  $('humLevel').oninput = () => { if (humGain) humGain.gain.setTargetAtTime(parseFloat($('humLevel').value), ctx.currentTime, 0.02); };
+  $('volumeDrift').oninput = () => { if (driftDepth) driftDepth.gain.setTargetAtTime(parseFloat($('volumeDrift').value), ctx.currentTime, 0.02); };
+}
+
+async function startPlayback() {
+  if (!fileBuffer) return alert("请先上传音频文件");
+  ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+
+  // 先停旧节点
+  stopPlayback(true);
+
+  // 源
+  src = ctx.createBufferSource();
+  src.buffer = fileBuffer;
+  src.loop = true;
+
+  if (bypass) {
+    // 真·旁路：干声直出
+    src.connect(ctx.destination);
+    src.start();
+  } else {
+    // 效果链
+    filterNode = ctx.createBiquadFilter(); filterNode.type="lowpass"; filterNode.frequency.value=parseFloat($('hfRoll').value);
+    saturationNode = ctx.createWaveShaper(); saturationNode.curve = makeSaturationCurve(parseFloat($('saturation').value)*20);
+    distortionNode = ctx.createWaveShaper(); distortionNode.curve = makeSaturationCurve(parseFloat($('distortionAmount').value)*50);
+
+    // wow/flutter -> playbackRate
+    wowLFO = ctx.createOscillator(); wowGain = ctx.createGain();
+    wowLFO.frequency.value = parseFloat($('wowRate').value);
+    wowGain.gain.value = parseFloat($('wowDepth').value) * 0.05;
+    wowLFO.connect(wowGain).connect(src.playbackRate); wowLFO.start();
+
+    flutterLFO = ctx.createOscillator(); flutterGain = ctx.createGain();
+    flutterLFO.frequency.value = parseFloat($('flutterRate').value);
+    flutterGain.gain.value = parseFloat($('flutterDepth').value) * 0.01;
+    flutterLFO.connect(flutterGain).connect(src.playbackRate); flutterLFO.start();
+
+    // 立体声摆动
+    panner = ctx.createStereoPanner();
+    panLFO = ctx.createOscillator(); panGain = ctx.createGain();
+    const panSpeed = parseFloat($('panningSpeed').value);
+    panLFO.frequency.value = panSpeed;
+    panGain.gain.value = panSpeed === 0 ? 0 : 1;
+    panLFO.connect(panGain).connect(panner.pan);
+    if (panSpeed === 0) panner.pan.value = 0;
+    panLFO.start();
+
+    // 噪声
+    noiseGain = ctx.createGain(); noiseGain.gain.value = Math.pow(parseFloat($('noiseLevel').value), 2.2);
+    noiseSource = ctx.createBufferSource();
+    noiseSource.buffer = generateNoiseBuffer(ctx, fileBuffer.duration, $('noiseColor').value);
+    noiseSource.loop = true; noiseSource.connect(noiseGain); noiseSource.start();
+
+    // 嗡嗡声
+    humGain = ctx.createGain(); humGain.gain.value = parseFloat($('humLevel').value);
+    humSource = ctx.createBufferSource();
+    humSource.buffer = generateHumBuffer(ctx, fileBuffer.duration);
+    humSource.loop = true; humSource.connect(humGain); humSource.start();
+
+    // 漂移
+    driftGain = ctx.createGain();
+    driftLFO = ctx.createOscillator(); driftDepth = ctx.createGain();
+    driftLFO.frequency.value = 0.2; driftDepth.gain.value = parseFloat($('volumeDrift').value);
+    driftLFO.connect(driftDepth).connect(driftGain.gain); driftLFO.start();
+
+    // 合并
+    merger = ctx.createGain();
+    src.connect(filterNode).connect(saturationNode).connect(distortionNode).connect(panner).connect(driftGain).connect(merger);
+    noiseGain.connect(merger);
+    humGain.connect(merger);
+    merger.connect(ctx.destination);
+
+    src.start();
+  }
+
+  if (!startPlayback._bound) { bindLiveControls(); startPlayback._bound = true; }
+}
+
+function stopPlayback(quiet=false) {
+  [src, noiseSource, humSource].forEach(n=>{ try{ n && n.stop(); }catch(e){} });
+  [wowLFO, flutterLFO, driftLFO, panLFO].forEach(o=>{ try{ o && o.stop(); }catch(e){} });
+
+  src = null;
+  filterNode = saturationNode = distortionNode = null;
+  wowLFO = wowGain = flutterLFO = flutterGain = null;
+  panner = panLFO = panGain = null;
+  noiseSource = noiseGain = null;
+  humSource = humGain = null;
+  driftGain = driftLFO = driftDepth = null;
+  merger = null;
+}
+
+function toggleBypass() {
+  bypass = !bypass;
+  $('bypassBtn').innerText = `Bypass: ${bypass ? 'ON' : 'OFF'}`;
+  // 重新搭链以立即反映旁路状态
+  startPlayback();
+}
+
+// —— 工具函数 —— //
+function generateNoiseBuffer(ctx, duration, type) {
+  const buffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * duration)), ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  if (type === "white") {
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  } else if (type === "pink") {
+    let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+    for (let i = 0; i < data.length; i++) {
+      const white = Math.random() * 2 - 1;
+      b0 = 0.99886*b0 + white*0.0555179;
+      b1 = 0.99332*b1 + white*0.0750759;
+      b2 = 0.96900*b2 + white*0.1538520;
+      b3 = 0.86650*b3 + white*0.3104856;
+      b4 = 0.55000*b4 + white*0.5329522;
+      b5 = -0.7616*b5 - white*0.0168980;
+      data[i] = b0+b1+b2+b3+b4+b5+b6+white*0.5362;
+      data[i] *= 0.11;
+      b6 = white * 0.115926;
+    }
+  } else { // brown
+    let lastOut = 0.0;
+    for (let i = 0; i < data.length; i++) {
+      const white = Math.random()*2 - 1;
+      data[i] = (lastOut + (0.02 * white)) / 1.02;
+      lastOut = data[i];
+      data[i] *= 3.5;
+    }
+  }
+  return buffer;
+}
+
+function generateHumBuffer(ctx, duration) {
+  const buffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * duration)), ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  const f = 60; // 60Hz
+  const omega = 2 * Math.PI * f / ctx.sampleRate;
+  for (let i = 0; i < data.length; i++) data[i] = Math.sin(omega * i);
+  return buffer;
+}
+
+function makeSaturationCurve(amount) {
+  const n = 44100, curve = new Float32Array(n);
+  if (amount === 0) { for (let i=0;i<n;++i) curve[i] = i*2/n - 1; return curve; }
+  const k = amount, deg = Math.PI/180;
+  for (let i=0;i<n;++i) {
+    const x = i*2/n - 1;
+    curve[i] = (3 + k) * x * 20 * deg / (Math.PI + k * Math.abs(x));
+  }
+  return curve;
+}
+
+async function downloadProcessed() {
+  if (!fileBuffer) return alert("请先上传音频文件");
+
+  const params = {
+    hfRoll: parseFloat($('hfRoll').value),
+    saturation: parseFloat($('saturation').value),
+    distortionAmount: parseFloat($('distortionAmount').value),
+    wowRate: parseFloat($('wowRate').value),
+    wowDepth: parseFloat($('wowDepth').value),
+    flutterRate: parseFloat($('flutterRate').value),
+    flutterDepth: parseFloat($('flutterDepth').value),
+    panningSpeed: parseFloat($('panningSpeed').value),
+    noiseLevel: Math.pow(parseFloat($('noiseLevel').value), 2.2),
+    noiseColor: $('noiseColor').value,
+    humLevel: parseFloat($('humLevel').value),
+    volumeDrift: parseFloat($('volumeDrift').value),
+    bypass: !!bypass
+  };
+
+  const numCh = Math.max(1, fileBuffer.numberOfChannels);
+  const octx = new OfflineAudioContext(numCh, fileBuffer.length, fileBuffer.sampleRate);
+
+  const src = octx.createBufferSource();
+  src.buffer = fileBuffer; src.loop = false;
+
+  if (params.bypass) {
+    // 真·旁路：干声
+    src.connect(octx.destination);
+  } else {
+    const filter = octx.createBiquadFilter(); filter.type="lowpass"; filter.frequency.value=params.hfRoll;
+    const sat = octx.createWaveShaper(); sat.curve = makeSaturationCurve(params.saturation * 20);
+    const dist = octx.createWaveShaper(); dist.curve = makeSaturationCurve(params.distortionAmount * 50);
+
+    const wowLFO = octx.createOscillator(), wowGain = octx.createGain();
+    wowLFO.frequency.value = params.wowRate; wowGain.gain.value = params.wowDepth * 0.05;
+    wowLFO.connect(wowGain).connect(src.playbackRate);
+
+    const flutterLFO = octx.createOscillator(), flutterGain = octx.createGain();
+    flutterLFO.frequency.value = params.flutterRate; flutterGain.gain.value = params.flutterDepth * 0.01;
+    flutterLFO.connect(flutterGain).connect(src.playbackRate);
+
+    const panner = octx.createStereoPanner();
+    const panLFO = octx.createOscillator(), panGain = octx.createGain();
+    panLFO.frequency.value = params.panningSpeed;
+    panGain.gain.value = params.panningSpeed === 0 ? 0 : 1;
+    panLFO.connect(panGain).connect(panner.pan);
+    if (params.panningSpeed === 0) panner.pan.value = 0;
+
+    const noiseGain = octx.createGain(); noiseGain.gain.value = params.noiseLevel;
+    const noiseSource = octx.createBufferSource();
+    noiseSource.buffer = generateNoiseBuffer(octx, fileBuffer.duration, params.noiseColor);
+    noiseSource.loop = true; noiseSource.connect(noiseGain);
+
+    const humGain = octx.createGain(); humGain.gain.value = params.humLevel;
+    const humSource = octx.createBufferSource();
+    humSource.buffer = generateHumBuffer(octx, fileBuffer.duration);
+    humSource.loop = true; humSource.connect(humGain);
+
+    const driftGain = octx.createGain();
+    const driftLFO = octx.createOscillator(), driftDepth = octx.createGain();
+    driftLFO.frequency.value = 0.2; driftDepth.gain.value = params.volumeDrift;
+    driftLFO.connect(driftDepth).connect(driftGain.gain);
+
+    const merger = octx.createGain();
+    src.connect(filter).connect(sat).connect(dist).connect(panner).connect(driftGain).connect(merger);
+    noiseGain.connect(merger);
+    humGain.connect(merger);
+    merger.connect(octx.destination);
+
+    const t0 = 0;
+    wowLFO.start(t0); flutterLFO.start(t0); panLFO.start(t0); driftLFO.start(t0);
+    noiseSource.start(t0); humSource.start(t0);
+  }
+
+  src.start(0);
+
+  const rendered = await octx.startRendering();
+  const wav = audioBufferToWav(rendered);
+  const blob = new Blob([new DataView(wav)], { type:'audio/wav' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'vhs-processed.wav';
+  a.click();
+}
+
+// PCM->WAV
+function audioBufferToWav(buffer) {
+  const numOfChan = buffer.numberOfChannels,
+    length = buffer.length * numOfChan * 2 + 44,
+    bufferArray = new ArrayBuffer(length),
+    view = new DataView(bufferArray),
+    channels = [], sampleRate = buffer.sampleRate;
+  let offset = 0, pos = 0;
+  function setUint16(data) { view.setUint16(pos, data, true); pos += 2; }
+  function setUint32(data) { view.setUint32(pos, data, true); pos += 4; }
+  setUint32(0x46464952); setUint32(length - 8); setUint32(0x45564157);
+  setUint32(0x20746d66); setUint32(16); setUint16(1); setUint16(numOfChan);
+  setUint32(sampleRate); setUint32(sampleRate * 2 * numOfChan);
+  setUint16(numOfChan * 2); setUint16(16);
+  setUint32(0x61746164); setUint32(length - pos - 4);
+  for (let i = 0; i < buffer.numberOfChannels; i++) channels.push(buffer.getChannelData(i));
+  while (pos < length) {
+    for (let i = 0; i < numOfChan; i++) {
+      let sample = Math.max(-1, Math.min(1, channels[i][offset]));
+      sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+      view.setInt16(pos, sample, true);
+      pos += 2;
+    }
+    offset++;
+  }
+  return bufferArray;
+}
+</script>
+
+</body>
+</html>
