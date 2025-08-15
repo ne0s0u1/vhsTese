@@ -4,70 +4,142 @@
 <meta charset="UTF-8" />
 <title>VHS Audio FX Generator</title>
 <style>
-  body { background:#111;color:#fff;font-family:Arial, sans-serif;padding:20px; }
-  h1 { color:#ff5252; }
-  label { display:block;margin-top:10px;font-weight:bold; }
-  input[type="range"], select { width:100%; }
-  button { margin-top:15px;padding:10px 15px;background:#ff5252;border:none;color:white;cursor:pointer; }
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500&display=swap');
+
+  body {
+    background: #000;
+    color: #fff;
+    font-family: 'Orbitron', sans-serif;
+    padding: 20px;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(255,255,255,0.03) 0px,
+      rgba(255,255,255,0.03) 1px,
+      transparent 2px,
+      transparent 4px
+    );
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 2.5em;
+    background: linear-gradient(90deg, #ff00cc, #00ffff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 6px rgba(255,0,200,0.6), 0 0 12px rgba(0,255,255,0.6);
+    margin-bottom: 20px;
+  }
+
+  label {
+    display: block;
+    margin-top: 12px;
+    font-size: 0.9em;
+    letter-spacing: 1px;
+  }
+
+  input[type="range"], select {
+    width: 100%;
+    accent-color: #ff00cc;
+    background: transparent;
+    margin-top: 5px;
+  }
+
+  button {
+    margin-top: 15px;
+    padding: 10px 18px;
+    background: linear-gradient(90deg, #ff00cc, #00ffff);
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-weight: bold;
+    letter-spacing: 1px;
+    border-radius: 4px;
+    text-shadow: 0 0 4px #000;
+    transition: transform 0.1s ease-in-out;
+  }
+
+  button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 10px rgba(255,0,200,0.7), 0 0 20px rgba(0,255,255,0.7);
+  }
+
+  .controls {
+    max-width: 600px;
+    margin: auto;
+    background: rgba(20,20,20,0.8);
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(255,0,200,0.4);
+  }
 </style>
 </head>
 <body>
 
-<h1>🎛 VHS Audio FX Generator</h1>
+<h1>📼 VHS Audio FX</h1>
 
-<label>上传音频文件 (Upload Audio File)：</label>
-<input type="file" id="audioFile" accept="audio/*">
+<div class="controls">
+  <label>上传音频文件：</label>
+  <input type="file" id="audioFile" accept="audio/*">
 
-<label>噪声音量 (Noise Level)：</label>
-<input type="range" id="noiseLevel" min="0" max="0.5" step="0.01" value="0.05">
+  <label>噪声音量：</label>
+  <input type="range" id="noiseLevel" min="0" max="0.5" step="0.01" value="0.05">
 
-<label>噪声类型 (Noise Color)：</label>
-<select id="noiseColor">
-  <option value="white">White Noise (Bright)</option>
-  <option value="pink">Pink Noise (Warm)</option>
-  <option value="brown">Brown Noise (Deep)</option>
-</select>
+  <label>噪声类型：</label>
+  <select id="noiseColor">
+    <option value="white">白噪声</option>
+    <option value="pink">粉噪声</option>
+    <option value="brown">棕噪声</option>
+  </select>
 
-<label>磁带饱和 (Tape Saturation)：</label>
-<input type="range" id="saturation" min="0" max="1" step="0.05" value="0.4">
+  <label>磁带饱和：</label>
+  <input type="range" id="saturation" min="0" max="1" step="0.05" value="0.4">
 
-<label>失真强度 (Distortion Amount)：</label>
-<input type="range" id="distortionAmount" min="0" max="1" step="0.01" value="0.2">
+  <label>失真强度：</label>
+  <input type="range" id="distortionAmount" min="0" max="1" step="0.01" value="0.2">
 
-<label>音调偏离程度：</label>
-<input type="range" id="wowDepth" min="0" max="1" step="0.01" value="0.05">
+  <label>音高摇摆深度 (Wow)：</label>
+  <input type="range" id="wowDepth" min="0" max="1" step="0.01" value="0.05">
 
-<label>音调偏离速率 (Hz)：</label>
-<input type="range" id="wowRate" min="0.1" max="5" step="0.1" value="1">
+  <label>音高摇摆速度 (Wow Hz)：</label>
+  <input type="range" id="wowRate" min="0.1" max="5" step="0.1" value="1">
 
-<label>颤音程度：</label>
-<input type="range" id="flutterDepth" min="0" max="1" step="0.01" value="0.02">
+  <label>颤音深度 (Flutter)：</label>
+  <input type="range" id="flutterDepth" min="0" max="1" step="0.01" value="0.02">
 
-<label>颤音速率 (Hz)：</label>
-<input type="range" id="flutterRate" min="1" max="20" step="0.1" value="8">
+  <label>颤音速度 (Flutter Hz)：</label>
+  <input type="range" id="flutterRate" min="1" max="20" step="0.1" value="8">
 
-<label>立体声摆动速度 (Hz)：</label>
-<input type="range" id="panningSpeed" min="0" max="5" step="0.1" value="0.5">
+  <label>立体声摆动速度 (Hz)：</label>
+  <input type="range" id="panningSpeed" min="0" max="5" step="0.1" value="0.5">
 
-<label>背景嗡嗡声 (Hum Level)：</label>
-<input type="range" id="humLevel" min="0" max="0.5" step="0.01" value="0.05">
+  <label>背景嗡嗡声：</label>
+  <input type="range" id="humLevel" min="0" max="0.5" step="0.01" value="0.05">
 
-<label>音量漂移 (Volume Drift)：</label>
-<input type="range" id="volumeDrift" min="0" max="1" step="0.01" value="0.1">
+  <label>音量漂移：</label>
+  <input type="range" id="volumeDrift" min="0" max="1" step="0.01" value="0.1">
 
-<label>高频衰减 (HF Roll-off, Hz)：</label>
-<input type="range" id="hfRoll" min="500" max="10000" step="100" value="4000">
+  <label>高频衰减 (Hz)：</label>
+  <input type="range" id="hfRoll" min="500" max="10000" step="100" value="4000">
 
-<button onclick="startPlayback()">Start / Update</button>
-<button onclick="stopPlayback()">Stop</button>
-<button onclick="toggleBypass()" id="bypassBtn">Bypass: OFF</button>
-<button onclick="downloadProcessed()">Download Processed Audio</button>
+  <button onclick="startPlayback()">▶ Start / Update</button>
+  <button onclick="stopPlayback()">⏹ Stop</button>
+  <button onclick="toggleBypass()" id="bypassBtn">Bypass: OFF</button>
+  <button onclick="downloadProcessed()">💾 Download WAV</button>
+</div>
 
 <script>
-let ctx = null;
-let fileBuffer = null;
-
-// 全局：节点引用
+let ctx = null, fileBuffer = null;
 let src = null, bypass = false;
 let filterNode, saturationNode, distortionNode;
 let wowLFO, wowGain, flutterLFO, flutterGain;
@@ -77,11 +149,9 @@ let humSource, humGain;
 let driftGain, driftLFO, driftDepth;
 let merger;
 
-// 平滑
 const SMOOTH = 0.05;
 const $ = id => document.getElementById(id);
 
-// 文件载入
 $('audioFile').addEventListener('change', async e => {
   const file = e.target.files[0];
   if (!file) return;
@@ -90,17 +160,14 @@ $('audioFile').addEventListener('change', async e => {
   fileBuffer = await ctx.decodeAudioData(arrayBuffer);
 });
 
-// 绑定控件
 function bindLiveControls() {
   $('hfRoll').oninput = () => { if (filterNode) filterNode.frequency.linearRampToValueAtTime(parseFloat($('hfRoll').value), ctx.currentTime + SMOOTH); };
   $('saturation').oninput = () => { if (saturationNode) saturationNode.curve = makeSaturationCurve(parseFloat($('saturation').value) * 20); };
   $('distortionAmount').oninput = () => { if (distortionNode) distortionNode.curve = makeSaturationCurve(parseFloat($('distortionAmount').value) * 50); };
-
   $('wowRate').oninput = () => { if (wowLFO) wowLFO.frequency.setTargetAtTime(parseFloat($('wowRate').value), ctx.currentTime, 0.01); };
   $('wowDepth').oninput = () => { if (wowGain) wowGain.gain.setTargetAtTime(parseFloat($('wowDepth').value) * 0.05, ctx.currentTime, 0.01); };
   $('flutterRate').oninput = () => { if (flutterLFO) flutterLFO.frequency.setTargetAtTime(parseFloat($('flutterRate').value), ctx.currentTime, 0.01); };
   $('flutterDepth').oninput = () => { if (flutterGain) flutterGain.gain.setTargetAtTime(parseFloat($('flutterDepth').value) * 0.01, ctx.currentTime, 0.01); };
-
   $('panningSpeed').oninput = () => {
     const v = parseFloat($('panningSpeed').value);
     if (panLFO && panGain && panner) {
@@ -109,12 +176,10 @@ function bindLiveControls() {
       if (v === 0) panner.pan.setTargetAtTime(0, ctx.currentTime, 0.01);
     }
   };
-
   $('noiseLevel').oninput = () => { if (noiseGain) noiseGain.gain.setTargetAtTime(Math.pow(parseFloat($('noiseLevel').value), 2.2), ctx.currentTime, 0.02); };
   $('noiseColor').onchange = () => {
-    if (!ctx || !fileBuffer) return;
+    if (!ctx || !fileBuffer || !noiseGain) return;
     if (noiseSource) { try { noiseSource.stop(); } catch(e){} }
-    if (!noiseGain) return; // 旁路或未启用效果链
     const newBuf = generateNoiseBuffer(ctx, fileBuffer.duration, $('noiseColor').value);
     noiseSource = ctx.createBufferSource();
     noiseSource.buffer = newBuf; noiseSource.loop = true;
@@ -127,69 +192,51 @@ function bindLiveControls() {
 async function startPlayback() {
   if (!fileBuffer) return alert("请先上传音频文件");
   ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
-
-  // 先停旧节点
   stopPlayback(true);
-
-  // 源
   src = ctx.createBufferSource();
-  src.buffer = fileBuffer;
-  src.loop = true;
+  src.buffer = fileBuffer; src.loop = true;
 
   if (bypass) {
-    // 真·旁路：干声直出
     src.connect(ctx.destination);
     src.start();
   } else {
-    // 效果链
     filterNode = ctx.createBiquadFilter(); filterNode.type="lowpass"; filterNode.frequency.value=parseFloat($('hfRoll').value);
     saturationNode = ctx.createWaveShaper(); saturationNode.curve = makeSaturationCurve(parseFloat($('saturation').value)*20);
     distortionNode = ctx.createWaveShaper(); distortionNode.curve = makeSaturationCurve(parseFloat($('distortionAmount').value)*50);
 
-    // wow/flutter -> playbackRate
     wowLFO = ctx.createOscillator(); wowGain = ctx.createGain();
-    wowLFO.frequency.value = parseFloat($('wowRate').value);
-    wowGain.gain.value = parseFloat($('wowDepth').value) * 0.05;
+    wowLFO.frequency.value = parseFloat($('wowRate').value); wowGain.gain.value = parseFloat($('wowDepth').value) * 0.05;
     wowLFO.connect(wowGain).connect(src.playbackRate); wowLFO.start();
 
     flutterLFO = ctx.createOscillator(); flutterGain = ctx.createGain();
-    flutterLFO.frequency.value = parseFloat($('flutterRate').value);
-    flutterGain.gain.value = parseFloat($('flutterDepth').value) * 0.01;
+    flutterLFO.frequency.value = parseFloat($('flutterRate').value); flutterGain.gain.value = parseFloat($('flutterDepth').value) * 0.01;
     flutterLFO.connect(flutterGain).connect(src.playbackRate); flutterLFO.start();
 
-    // 立体声摆动
     panner = ctx.createStereoPanner();
     panLFO = ctx.createOscillator(); panGain = ctx.createGain();
     const panSpeed = parseFloat($('panningSpeed').value);
-    panLFO.frequency.value = panSpeed;
-    panGain.gain.value = panSpeed === 0 ? 0 : 1;
-    panLFO.connect(panGain).connect(panner.pan);
-    if (panSpeed === 0) panner.pan.value = 0;
+    panLFO.frequency.value = panSpeed; panGain.gain.value = panSpeed === 0 ? 0 : 1;
+    panLFO.connect(panGain).connect(panner.pan); if (panSpeed === 0) panner.pan.value = 0;
     panLFO.start();
 
-    // 噪声
     noiseGain = ctx.createGain(); noiseGain.gain.value = Math.pow(parseFloat($('noiseLevel').value), 2.2);
     noiseSource = ctx.createBufferSource();
     noiseSource.buffer = generateNoiseBuffer(ctx, fileBuffer.duration, $('noiseColor').value);
     noiseSource.loop = true; noiseSource.connect(noiseGain); noiseSource.start();
 
-    // 嗡嗡声
     humGain = ctx.createGain(); humGain.gain.value = parseFloat($('humLevel').value);
     humSource = ctx.createBufferSource();
     humSource.buffer = generateHumBuffer(ctx, fileBuffer.duration);
     humSource.loop = true; humSource.connect(humGain); humSource.start();
 
-    // 漂移
     driftGain = ctx.createGain();
     driftLFO = ctx.createOscillator(); driftDepth = ctx.createGain();
     driftLFO.frequency.value = 0.2; driftDepth.gain.value = parseFloat($('volumeDrift').value);
     driftLFO.connect(driftDepth).connect(driftGain.gain); driftLFO.start();
 
-    // 合并
     merger = ctx.createGain();
     src.connect(filterNode).connect(saturationNode).connect(distortionNode).connect(panner).connect(driftGain).connect(merger);
-    noiseGain.connect(merger);
-    humGain.connect(merger);
+    noiseGain.connect(merger); humGain.connect(merger);
     merger.connect(ctx.destination);
 
     src.start();
@@ -201,33 +248,21 @@ async function startPlayback() {
 function stopPlayback(quiet=false) {
   [src, noiseSource, humSource].forEach(n=>{ try{ n && n.stop(); }catch(e){} });
   [wowLFO, flutterLFO, driftLFO, panLFO].forEach(o=>{ try{ o && o.stop(); }catch(e){} });
-
-  src = null;
-  filterNode = saturationNode = distortionNode = null;
-  wowLFO = wowGain = flutterLFO = flutterGain = null;
-  panner = panLFO = panGain = null;
-  noiseSource = noiseGain = null;
-  humSource = humGain = null;
-  driftGain = driftLFO = driftDepth = null;
-  merger = null;
 }
 
 function toggleBypass() {
   bypass = !bypass;
   $('bypassBtn').innerText = `Bypass: ${bypass ? 'ON' : 'OFF'}`;
-  // 重新搭链以立即反映旁路状态
   startPlayback();
 }
 
-// —— 工具函数 —— //
 function generateNoiseBuffer(ctx, duration, type) {
   const buffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * duration)), ctx.sampleRate);
   const data = buffer.getChannelData(0);
-  if (type === "white") {
-    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-  } else if (type === "pink") {
+  if (type === "white") for (let i=0; i<data.length; i++) data[i] = Math.random() * 2 - 1;
+  else if (type === "pink") {
     let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
-    for (let i = 0; i < data.length; i++) {
+    for (let i=0; i<data.length; i++) {
       const white = Math.random() * 2 - 1;
       b0 = 0.99886*b0 + white*0.0555179;
       b1 = 0.99332*b1 + white*0.0750759;
@@ -235,17 +270,13 @@ function generateNoiseBuffer(ctx, duration, type) {
       b3 = 0.86650*b3 + white*0.3104856;
       b4 = 0.55000*b4 + white*0.5329522;
       b5 = -0.7616*b5 - white*0.0168980;
-      data[i] = b0+b1+b2+b3+b4+b5+b6+white*0.5362;
-      data[i] *= 0.11;
-      b6 = white * 0.115926;
+      data[i] = b0+b1+b2+b3+b4+b5+b6+white*0.5362; data[i] *= 0.11; b6 = white * 0.115926;
     }
-  } else { // brown
+  } else {
     let lastOut = 0.0;
-    for (let i = 0; i < data.length; i++) {
+    for (let i=0; i<data.length; i++) {
       const white = Math.random()*2 - 1;
-      data[i] = (lastOut + (0.02 * white)) / 1.02;
-      lastOut = data[i];
-      data[i] *= 3.5;
+      data[i] = (lastOut + (0.02 * white)) / 1.02; lastOut = data[i]; data[i] *= 3.5;
     }
   }
   return buffer;
@@ -254,9 +285,8 @@ function generateNoiseBuffer(ctx, duration, type) {
 function generateHumBuffer(ctx, duration) {
   const buffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * duration)), ctx.sampleRate);
   const data = buffer.getChannelData(0);
-  const f = 60; // 60Hz
-  const omega = 2 * Math.PI * f / ctx.sampleRate;
-  for (let i = 0; i < data.length; i++) data[i] = Math.sin(omega * i);
+  const f = 60, omega = 2 * Math.PI * f / ctx.sampleRate;
+  for (let i=0; i<data.length; i++) data[i] = Math.sin(omega * i);
   return buffer;
 }
 
@@ -292,12 +322,10 @@ async function downloadProcessed() {
 
   const numCh = Math.max(1, fileBuffer.numberOfChannels);
   const octx = new OfflineAudioContext(numCh, fileBuffer.length, fileBuffer.sampleRate);
-
   const src = octx.createBufferSource();
   src.buffer = fileBuffer; src.loop = false;
 
   if (params.bypass) {
-    // 真·旁路：干声
     src.connect(octx.destination);
   } else {
     const filter = octx.createBiquadFilter(); filter.type="lowpass"; filter.frequency.value=params.hfRoll;
@@ -336,8 +364,7 @@ async function downloadProcessed() {
 
     const merger = octx.createGain();
     src.connect(filter).connect(sat).connect(dist).connect(panner).connect(driftGain).connect(merger);
-    noiseGain.connect(merger);
-    humGain.connect(merger);
+    noiseGain.connect(merger); humGain.connect(merger);
     merger.connect(octx.destination);
 
     const t0 = 0;
@@ -346,18 +373,14 @@ async function downloadProcessed() {
   }
 
   src.start(0);
-
   const rendered = await octx.startRendering();
   const wav = audioBufferToWav(rendered);
   const blob = new Blob([new DataView(wav)], { type:'audio/wav' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url;
-  a.download = 'vhs-processed.wav';
-  a.click();
+  a.href = url; a.download = 'vhs-processed.wav'; a.click();
 }
 
-// PCM->WAV
 function audioBufferToWav(buffer) {
   const numOfChan = buffer.numberOfChannels,
     length = buffer.length * numOfChan * 2 + 44,
@@ -385,6 +408,5 @@ function audioBufferToWav(buffer) {
   return bufferArray;
 }
 </script>
-
 </body>
 </html>
